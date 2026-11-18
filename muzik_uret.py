@@ -45,8 +45,23 @@ TARZLAR.update({
     "gol_patlamasi": dict(key="F", minor=True, prog=["i", "bVI", "bIII", "bVII"], bpm=128, bars=1, bright=0.85,
                           layers=dict(sub=0, pluck=0, arp=0.4, pad=0.6, bass=0.6, kick=0.6, clap=0.6, hat=0.6, brass=0.8)),
 })
+# GTA VI seti: fragmanlardaki 80'ler synth-pop / synthwave havası (115-128 BPM)
+TARZLAR.update({
+    "vice_gece":       dict(key="A", minor=True, prog=["i", "bVI", "bIII", "bVII"], bpm=118, bars=1, bright=0.7,
+                            layers=dict(pad=0, sub=0, arp=0, bass=0.6, kick=0.6, snare=0.6, hat=0.7)),
+    "okyanus_bulvari": dict(key="D", minor=False, prog=["I", "vi", "IV", "V"], bpm=112, bars=1, bright=0.65,
+                            layers=dict(pad=0, sub=0, pluck=0, bell=0.4, bass=0.6, kick=0.6, clap=0.6, hat=0.7)),
+    "leonida_parti":   dict(key="F#", minor=True, prog=["i", "bVII", "bVI", "bVII"], bpm=124, bars=1, bright=0.8,
+                            layers=dict(pad=0, pluck=0, arp=0.4, bass=0.6, kick=0.6, clap=0.6, hat=0.6)),
+    "kovalamaca":      dict(key="C", minor=True, prog=["i", "bVI", "bVII", "V"], bpm=128, bars=1, bright=0.65,
+                            layers=dict(sub=0, pulse=0, arp=0.4, kick=0.6, snare=0.6, hat=0.6, brass=0.7)),
+    # Miami disko-funk: çan/piyano yok (ninni hissi veriyordu); dorian ton, her vuruşta davul, funk bas, brass
+    "yat_partisi":     dict(key="G", minor=True, prog=["i", "IV", "i", "bVII"], bpm=122, bars=1, bright=0.8,
+                            layers=dict(sub=0, pluck=0, bass=0, arp=0.4, kick=0.5, clap=0.6, hat=0.5, brass=0.7)),
+})
 SETLER = {"genel": ["arena", "neon_rush", "boss_fight", "victory_lap", "street_party"],
-          "fc27": ["derbi", "son_dakika", "kupa_finali", "rovans", "gol_patlamasi"]}
+          "fc27": ["derbi", "son_dakika", "kupa_finali", "rovans", "gol_patlamasi"],
+          "gta6": ["vice_gece", "okyanus_bulvari", "leonida_parti", "kovalamaca", "yat_partisi"]}
 music.MOODS.update(TARZLAR)
 
 
@@ -80,11 +95,12 @@ def main():
     p.add_argument("--sure", type=float, default=15)
     p.add_argument("--varyasyon", type=int, default=1)
     p.add_argument("--set", default="fc27", choices=SETLER)
+    p.add_argument("--tarz", help="sadece bu tarz(lar), virgülle: --tarz yat_partisi")
     p.add_argument("--klasor", default=str(ROOT / "Muzik_Deneme"))
     a = p.parse_args()
     out = Path(a.klasor)
     out.mkdir(parents=True, exist_ok=True)
-    for tarz in SETLER[a.set]:
+    for tarz in (a.tarz.split(",") if a.tarz else SETLER[a.set]):
         for v in range(1, a.varyasyon + 1):
             hedef = out / (f"{tarz}.mp3" if a.varyasyon == 1 else f"{tarz}_{v}.mp3")
             uret(tarz, a.sure, seed=17 if v == 1 else v * 17, hedef=hedef, v=v)
