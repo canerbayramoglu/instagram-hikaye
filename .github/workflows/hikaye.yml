@@ -9,6 +9,10 @@ on:
         description: "Saat kontrolünü atla, hemen paylaş"
         type: boolean
         default: false
+      dosya:
+        description: "Test: sadece bu dosya ya da önek (örn. gta6_); boş = hepsi"
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -28,6 +32,7 @@ jobs:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           MEDIA_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/media
           FORCE: ${{ inputs.force && '1' || '0' }}
+          DOSYA: ${{ inputs.dosya }}
         run: python3 post_story.py
       - name: Kaydı güncelle
         run: |

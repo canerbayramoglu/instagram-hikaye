@@ -123,6 +123,11 @@ def main():
                    if p.suffix.lower() in IMAGE_EXT | VIDEO_EXT)
     if not files:
         sys.exit("media/ klasöründe paylaşılacak dosya yok.")
+    secim = os.environ.get("DOSYA", "").strip()  # test: tam dosya adı ya da önek (örn. gta6_)
+    if secim:
+        files = [f for f in files if f == secim or f.startswith(secim)]
+        if not files:
+            sys.exit(f"'{secim}' ile eşleşen medya yok.")
     log = state.get("log", [])
     filename = pick(files, log, now.date().isoformat())
 
