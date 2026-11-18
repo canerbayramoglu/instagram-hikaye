@@ -1,0 +1,40 @@
+name: Instagram hikaye
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # her saat; script Bulgaristan saatine göre karar verir
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Saat kontrolünü atla, hemen paylaş"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: hikaye
+
+jobs:
+  post:
+    # Anahtar: depo değişkeni PAYLASIM = acik ise paylaşır (Paylasim_Anahtari.command ya da GitHub ayarlarından)
+    if: vars.PAYLASIM == 'acik' || vars.PAYLASIM == 'açık' || inputs.force
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Paylaş
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          MEDIA_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/media
+          FORCE: ${{ inputs.force && '1' || '0' }}
+        run: python3 post_story.py
+      - name: Kaydı güncelle
+        run: |
+          if [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "hikaye-bot"
+            git config user.email "hikaye-bot@users.noreply.github.com"
+            git add state.json
+            git commit -m "hikaye paylaşıldı [skip ci]"
+            git push
+          fi

@@ -1,0 +1,11 @@
+{
+  "timezone": "Europe/Sofia",
+  "open": "10:00",
+  "close": "22:00",
+  "interval_minutes": 60,
+  "closed_days": [
+    6
+  ],
+  "graph_version": "v24.0",
+  "story_seconds": 15
+}
