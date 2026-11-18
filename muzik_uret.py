@@ -50,14 +50,27 @@ SETLER = {"genel": ["arena", "neon_rush", "boss_fight", "victory_lap", "street_p
 music.MOODS.update(TARZLAR)
 
 
-def uret(tarz, sure, seed, hedef):
+NOTALAR = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+# Varyasyon v: (ton kaydırma yarım ses, tempo farkı). v=1 orijinal parçanın aynısı.
+VARYASYON = [(0, 0), (2, 4), (-2, -4), (3, 6), (-3, -3), (5, 2), (-5, 5), (1, -6)]
+SES_LUFS = -12.5  # Instagram'ın -14'ünden ~1.5 dB yüksek, tepe -1 dBTP ile sınırlı
+
+
+def uret(tarz, sure, seed, hedef, v=1):
+    kay, dbpm = VARYASYON[(v - 1) % len(VARYASYON)]
+    ad = tarz if v == 1 else f"{tarz}_v{v}"
+    if v > 1:
+        t = dict(TARZLAR[tarz])
+        t["key"] = NOTALAR[(music.NOTE[t["key"]] + kay) % 12]
+        t["bpm"] = t["bpm"] + dbpm
+        music.MOODS[ad] = t
     giris = min(3.0, sure / 4)
-    plan = [{"start": 0, "end": giris, "mood": tarz, "intensity": 0.5},
-            {"start": giris, "end": sure, "mood": tarz, "intensity": 1.0}]
+    plan = [{"start": 0, "end": giris, "mood": ad, "intensity": 0.5},
+            {"start": giris, "end": sure, "mood": ad, "intensity": 1.0}]
     wav = hedef.with_suffix(".wav")
     write_wav(str(wav), music.render_score(plan, sure, seed))
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-af",
-                    f"loudnorm=I=-14:TP=-1,afade=t=out:st={sure - 1}:d=1", "-t", str(sure),
+                    f"loudnorm=I={SES_LUFS}:TP=-1,afade=t=out:st={sure - 1}:d=1", "-t", str(sure),
                     "-b:a", "192k", str(hedef)], check=True)
     wav.unlink()
 
@@ -70,11 +83,11 @@ def main():
     p.add_argument("--klasor", default=str(ROOT / "Muzik_Deneme"))
     a = p.parse_args()
     out = Path(a.klasor)
-    out.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     for tarz in SETLER[a.set]:
         for v in range(1, a.varyasyon + 1):
             hedef = out / (f"{tarz}.mp3" if a.varyasyon == 1 else f"{tarz}_{v}.mp3")
-            uret(tarz, a.sure, seed=v * 17, hedef=hedef)
+            uret(tarz, a.sure, seed=17 if v == 1 else v * 17, hedef=hedef, v=v)
             print(f"+ {hedef.name}")
 
 

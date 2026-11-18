@@ -3,8 +3,10 @@
 
 - Tasarımlar/ : oyun klasörleri (örn. Tasarımlar/FC27/) içinde görseller (jpg/png/webp/heic) ve videolar
                 (mp4/mov/m4v). Adı "_" ile başlayan klasör (örn. _FC27) paylaşıma dahil edilmez.
-- Müzikler/   : mp3/m4a/wav/aac. Boşsa görseller sessiz JPG olarak paylaşılır.
-Müzik varsa her tasarım, müzikler arasında dengeli ve rastgele dağıtılarak videoya çevrilir.
+- Müzikler/   : oyun klasörleri (örn. Müzikler/FC27/) içinde mp3/m4a/wav/aac. Tasarımlar/FC27 sadece
+                Müzikler/FC27 ile eşleşir; oyunun müzik klasörü yoksa/boşsa Müzikler/ içindeki genel müzikler,
+                o da yoksa görseller sessiz JPG olarak paylaşılır.
+Her tasarım, kendi oyununun müzikleri arasında dengeli ve rastgele dağıtılarak videoya çevrilir.
 Müzik eklenince/silinince sadece dengeyi sağlamaya yetecek kadar tasarım yeniden üretilir.
 Klasörden silinen tasarım media/'dan da silinir.
 
@@ -71,20 +73,33 @@ def saglam(p, tur):
     return r.returncode == 0 and not r.stderr.strip()
 
 
+def muzik_havuzlari(MUZ, oyunlar):
+    """Her oyun için müzik listesi: Müzikler/<Oyun>/ doluysa o, değilse Müzikler/ içindeki genel müzikler."""
+    def topla(d):
+        out = {}
+        for m in dosyalar(d, AUD):
+            if saglam(m, "a"):
+                out[str(m.relative_to(MUZ))] = m
+            else:
+                print(f"! Müzik açılamadı, kullanılmayacak: {m.relative_to(MUZ)}")
+        return out
+    genel = topla(MUZ)
+    alt = {slug(d.name): d for d in MUZ.iterdir() if d.is_dir() and not d.name.startswith((".", "_"))}
+    return {o: (topla(alt[slug(o)]) if slug(o) in alt else {}) or genel for o in oyunlar}
+
+
 def main():
-    TAS = klasor("Tasarımlar")
+    TAS, MUZ = klasor("Tasarımlar"), klasor("Müzikler")
     tasarimlar = dosyalar(TAS, IMG | VID, alt_klasorler=True)
-    muzikler = {m.name: m for m in dosyalar(klasor("Müzikler"), AUD)}
-    for m in [m for m in muzikler.values() if not saglam(m, "a")]:
-        print(f"! Müzik açılamadı, kullanılmayacak: {m.name}")
-        del muzikler[m.name]
+    oyun = {src: (src.relative_to(TAS).parts[0] if len(src.relative_to(TAS).parts) > 1 else "") for src in tasarimlar}
+    havuz = muzik_havuzlari(MUZ, set(oyun.values()))
     OUT.mkdir(exist_ok=True)
     eski = json.loads(MANIFEST.read_text()).get("dosyalar", {}) if MANIFEST.exists() else {}
 
     # Her tasarıma çakışmasız bir çıktı adı ver (a.png ve a.jpg -> a.mp4, a_2.mp4)
     plan, adlar = [], set()
     for src in tasarimlar:
-        ext = "mp4" if muzikler or src.suffix.lower() in VID else "jpg"
+        ext = "mp4" if havuz[oyun[src]] or src.suffix.lower() in VID else "jpg"
         rel = src.relative_to(TAS)
         kok = "_".join(filter(None, [slug(x) for x in rel.parent.parts] + [slug(src.stem) or "tasarim"]))
         hedef, i = f"{kok}.{ext}", 2
@@ -94,31 +109,33 @@ def main():
         plan.append((src, hedef, str(rel)))
 
     # Geçerli eşleşmeleri koru; sadece kaynağı/müziği değişenleri ve dengeyi bozanları yeniden üret.
-    # Böylece müzik eklemek/silmek sadece gerektiği kadar tasarımı etkiler.
-    tavan = -(-len(plan) // len(muzikler)) if muzikler else 0
-    sayac = Counter({m: 0 for m in muzikler})
+    # Böylece müzik eklemek/silmek sadece gerektiği kadar tasarımı etkiler. Denge her oyunun kendi müzikleri içinde.
+    kac = Counter(id(havuz[oyun[src]]) for src, _, _ in plan)
+    tavan = {o: -(-kac[id(h)] // len(h)) if h else 0 for o, h in havuz.items()}
+    sayac = Counter()
     yeni, isler = {}, []
     random.shuffle(plan)
     for src, hedef, rel in plan:
-        k = eski.get(hedef) or {}
+        muzikler, k = havuz[oyun[src]], eski.get(hedef) or {}
         m = k.get("muzik")
         gecerli = ((OUT / hedef).exists() and k.get("kaynak") == rel and k.get("mtime") == src.stat().st_mtime
                    and (m is None if not muzikler else
-                        m in muzikler and k.get("muzik_mtime") in (None, muzikler[m].stat().st_mtime) and sayac[m] < tavan))
+                        m in muzikler and k.get("muzik_mtime") == muzikler[m].stat().st_mtime
+                        and sayac[m] < tavan[oyun[src]]))
         if gecerli:
             yeni[hedef] = k
             if m:
-                k["muzik_mtime"] = muzikler[m].stat().st_mtime  # eski kayıtları tamamla
                 sayac[m] += 1
         else:
             isler.append((src, hedef, rel))
 
     hatalar = 0
     for src, hedef, rel in isler:
-        muzik = None
-        if muzikler:  # en az kullanılan müziklerden rastgele biri
-            az = min(sayac.values())
-            muzik = muzikler[random.choice([m for m in muzikler if sayac[m] == az])]
+        muzikler, muzik, mid = havuz[oyun[src]], None, None
+        if muzikler:  # bu oyunun en az kullanılan müziklerinden rastgele biri
+            az = min(sayac[m] for m in muzikler)
+            mid = random.choice([m for m in muzikler if sayac[m] == az])
+            muzik = muzikler[mid]
         dst = OUT / hedef
         if not saglam(src, "v"):
             hatalar += 1
@@ -137,21 +154,21 @@ def main():
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             dst.unlink(missing_ok=True)
             hatalar += 1
-            print(f"! {rel}" + (f" + {muzik.name}" if muzik else "") + " işlenemedi, atlandı (dosya bozuk olabilir).")
+            print(f"! {rel}" + (f" + {mid}" if mid else "") + " işlenemedi, atlandı (dosya bozuk olabilir).")
             continue
-        if muzik:
-            sayac[muzik.name] += 1
-        yeni[hedef] = {"kaynak": rel, "mtime": src.stat().st_mtime,
-                       "muzik": muzik.name if muzik else None,
+        if mid:
+            sayac[mid] += 1
+        yeni[hedef] = {"kaynak": rel, "mtime": src.stat().st_mtime, "muzik": mid,
                        "muzik_mtime": muzik.stat().st_mtime if muzik else None}
-        print(f"+ {rel} -> media/{hedef}" + (f"  ♪ {muzik.name}" if muzik else ""))
+        print(f"+ {rel} -> media/{hedef}" + (f"  ♪ {mid}" if mid else ""))
 
     for old in OUT.iterdir():
         if old.suffix.lower() in {".jpg", ".mp4"} and old.name not in yeni:
             old.unlink()
             print(f"- media/{old.name} (artık kullanılmıyor, silindi)")
     MANIFEST.write_text(json.dumps({"dosyalar": dict(sorted(yeni.items()))}, ensure_ascii=False, indent=1) + "\n")
-    print(f"Hazır: {len(yeni)} tasarım, {len(muzikler)} müzik." + (f" {hatalar} dosya atlandı." if hatalar else ""))
+    ozet = ", ".join(f"{o or 'genel'}: {len(h)} müzik" for o, h in sorted(havuz.items()))
+    print(f"Hazır: {len(yeni)} tasarım ({ozet})." + (f" {hatalar} dosya atlandı." if hatalar else ""))
 
 
 if __name__ == "__main__":
