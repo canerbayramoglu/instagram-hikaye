@@ -37,7 +37,8 @@ jobs:
           MEDIA_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/media
           FORCE: ${{ inputs.force && '1' || '0' }}
           DOSYA: ${{ inputs.dosya || vars.ONEK }}   # ONEK=gta6_ -> sadece GTA tasarımları
-        run: python3 post_story.py 2>&1 | tee cikti.txt
+        shell: bash
+        run: python3 post_story.py 2>&1 | tee cikti.txt   # shell: bash = -eo pipefail, hata gizlenmez
       - name: Kaydı güncelle
         run: |
           if [ -n "$(git status --porcelain state.json)" ]; then
