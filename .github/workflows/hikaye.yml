@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency: hikaye
 
@@ -29,13 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Paylaş
+        id: paylas
         env:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           MEDIA_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/media
           FORCE: ${{ inputs.force && '1' || '0' }}
           DOSYA: ${{ inputs.dosya || vars.ONEK }}   # ONEK=gta6_ -> sadece GTA tasarımları
-        run: python3 post_story.py
+        run: python3 post_story.py 2>&1 | tee cikti.txt
       - name: Kaydı güncelle
         run: |
           if [ -n "$(git status --porcelain state.json)" ]; then
@@ -45,3 +47,12 @@ jobs:
             git commit -m "hikaye paylaşıldı [skip ci]"
             git push
           fi
+      - name: Telegram bildirimi (sadece durunca / düzelince)
+        if: always() && steps.paylas.outcome != 'skipped'
+        continue-on-error: true
+        env:
+          SONUC: ${{ steps.paylas.outcome }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 bildir.py

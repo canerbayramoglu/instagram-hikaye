@@ -90,13 +90,13 @@ def publish(filename):
     params = {"media_type": "STORIES", "access_token": token,
               ("video_url" if is_video else "image_url"): url}
     container = api("POST", f"{ig_id}/media", params)["id"]
-    for _ in range(60):  # en fazla ~5 dk işlenmesini bekle
+    for _ in range(20):  # en fazla ~5 dk işlenmesini bekle; Meta'ya az istek için 15 sn arayla sor
+        time.sleep(15)
         status = api("GET", container, {"fields": "status_code", "access_token": token}).get("status_code")
         if status == "FINISHED":
             break
         if status in ("ERROR", "EXPIRED"):
             sys.exit(f"Medya işlenemedi ({status}): {filename}")
-        time.sleep(5)
     else:
         sys.exit(f"Medya zamanında işlenmedi: {filename}")
     return api("POST", f"{ig_id}/media_publish", {"creation_id": container, "access_token": token})["id"]
